@@ -41,3 +41,4 @@ input,textarea,select{font:inherit}
 .admin textarea{min-height:140px}
 table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border-bottom:1px solid #eee;padding:9px;text-align:left;vertical-align:top}
 @media(max-width:700px){.featured{grid-template-columns:1fr}.topbar h1{font-size:23px}}
+.ad-slot{text-align:center;margin:16px 0;overflow:hidden}
