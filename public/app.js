@@ -9,6 +9,11 @@ async function load(){
     fetch('/api/settings').then(r=>r.json()),
     fetch('/api/posts').then(r=>r.json()),
   ]);
+  if(s.adCode){
+    var adTop=document.getElementById('adTop'),adDetail=document.getElementById('adDetail');
+    if(adTop){adTop.innerHTML=s.adCode;adTop.style.display='block';}
+    if(adDetail){adDetail.innerHTML=s.adCode;adDetail.style.display='block';}
+  }
   document.getElementById('siteName').textContent = s.siteName || 'ধর্মপুর টাইমস';
   document.getElementById('siteTagline').textContent = s.tagline || '';
   const brkTitles = posts.filter(p=>p.breaking).map(p=>p.title).join(' • ');
