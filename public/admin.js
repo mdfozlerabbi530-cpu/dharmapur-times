@@ -34,10 +34,10 @@ async function loadAdmin(){
   const s = await api('/api/admin/settings','GET');
   document.getElementById('sName').value = s.siteName||''; document.getElementById('sTagline').value = s.tagline||'';
   document.getElementById('sBreaking').value = s.breaking||''; document.getElementById('sFb').value = s.facebook||'';
-  document.getElementById('sYt').value = s.youtube||''; document.getElementById('sContact').value = s.contact||'';
+  document.getElementById('sYt').value = s.youtube||''; document.getElementById('sContact').value = s.contact||''; document.getElementById('sAd').value = s.adCode||'';
   document.getElementById('postTable').innerHTML = '<table><tr><th>শিরোনাম</th><th>ক্যাটাগরি</th><th>অবস্থা</th><th></th></tr>' +
-    posts.map(p=>`<tr><td>${esc(p.title)}</td><td>${esc(p.category)}</td><td>${p.published?'পাবলিশড':'ড্রাফট'}</td>
-    <td><button onclick="delPost('${p.id}')">ডিলিট</button></td></tr>`).join('') + '</table>';
+  posts.map(p=>`<tr><td>${esc(p.title)}</td><td>${esc(p.category)}</td><td>${p.published?'পাবলিশড':'ড্রাফট'}</td>` +
+  `<td><button onclick="delPost('${p.id}')">ডিলিট</button></td></tr>`).join('') + '</table>';
 }
 window.delPost = async (id)=>{
   if(!confirm('এই পোস্টটি ডিলিট করবেন?')) return;
@@ -69,7 +69,7 @@ document.getElementById('settingsForm').onsubmit = async (e)=>{
   await api('/api/admin/settings','PUT',{
     siteName: document.getElementById('sName').value, tagline: document.getElementById('sTagline').value,
     breaking: document.getElementById('sBreaking').value, facebook: document.getElementById('sFb').value,
-    youtube: document.getElementById('sYt').value, contact: document.getElementById('sContact').value,
+    youtube: document.getElementById('sYt').value, contact: document.getElementById('sContact').value, adCode: document.getElementById('sAd').value,
   });
   alert('সেটিংস সেভ হয়েছে।');
 };
