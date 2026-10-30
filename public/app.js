@@ -19,6 +19,8 @@ async function load(){
   const sel = document.getElementById('catFilter');
   sel.innerHTML = '<option value="">সব ক্যাটাগরি</option>' + CATS.map(c=>`<option>${esc(c)}</option>`).join('');
   render('','');
+  const postId = new URLSearchParams(location.search).get('post');
+  if(postId && posts.some(p=>p.id===postId)) showDetail(postId);
 }
 function card(p){
   const img = p.imageUrl ? esc(p.imageUrl) : '/assets/logo.jpg';
@@ -39,16 +41,28 @@ function render(cat,q){
 }
 async function showDetail(id){
   const p = await fetch('/api/posts/'+id).then(r=>r.json());
+  if(!p || !p.id) return;
   document.getElementById('listView').style.display='none';
   const d = document.getElementById('detailView'); d.style.display='block';
+  const link = location.origin + '/?post=' + p.id;
   document.getElementById('detail').innerHTML = `
     <span class="badge">${esc(p.category)}</span>
     <h2>${esc(p.title)}</h2><time>${fmt(p.createdAt)}</time>
     ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="" style="margin-top:14px">`:''}
-    <p>${esc(p.body||'')}</p>`;
+    <p>${esc(p.body||'')}</p>
+    <p><button class="btn" id="copyLinkBtn">লিংক কপি করুন</button> <span id="copyMsg"></span></p>
+    <p style="color:#555;word-break:break-all">${esc(link)}</p>`;
+  try{ history.replaceState(null,'','/?post='+p.id); }catch(e){}
+  document.getElementById('copyLinkBtn').onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(link); }
+    catch(e){
+      const t = document.createElement('textarea'); t.value = link; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+    }
+    document.getElementById('copyMsg').textContent = 'লিংক কপি হয়েছে!';
+  };
   window.scrollTo(0,0);
 }
-document.getElementById('backBtn').onclick=()=>{document.getElementById('detailView').style.display='none';document.getElementById('listView').style.display='block';};
+document.getElementById('backBtn').onclick=()=>{document.getElementById('detailView').style.display='none';document.getElementById('listView').style.display='block';try{ history.replaceState(null,'','/'); }catch(e){}};
 document.getElementById('searchBtn').onclick=()=>render(document.getElementById('catFilter').value, document.getElementById('q').value);
 document.getElementById('catFilter').onchange=(e)=>render(e.target.value, document.getElementById('q').value);
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')render(document.getElementById('catFilter').value,e.target.value)});
