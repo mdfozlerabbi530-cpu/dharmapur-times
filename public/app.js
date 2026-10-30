@@ -2,6 +2,8 @@ const CATS = ['স্থানীয় সংবাদ','জাতীয়','�
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(d){try{return new Date(d).toLocaleDateString('bn-BD',{year:'numeric',month:'long',day:'numeric'})}catch(e){return d}}
 let allPosts=[];
+function directImg(u){if(typeof u!=='string'||!u)return '/assets/logo.jpg';if(u.indexOf('/uploads/')===0)return u;return /(\.png|\.jpg|\.jpeg|\.webp)$/i.test(u)?u:'/assets/logo.jpg';}
+async function copyPostLink(e,id,btn){e.stopPropagation();const link=location.origin+'/?post='+id;try{await navigator.clipboard.writeText(link);}catch(err){const t=document.createElement('textarea');t.value=link;document.body.appendChild(t);t.select();try{document.execCommand('copy');}catch(_){}t.remove();}const old=btn.textContent;btn.textContent='কপি হয়েছে!';setTimeout(function(){btn.textContent=old;},1500);}
 async function load(){
   const [s, posts] = await Promise.all([
     fetch('/api/settings').then(r=>r.json()),
@@ -23,12 +25,12 @@ async function load(){
   if(postId && posts.some(p=>p.id===postId)) showDetail(postId);
 }
 function card(p){
-  const img = p.imageUrl ? esc(p.imageUrl) : '/assets/logo.jpg';
+  const img = esc(directImg(p.imageUrl));
   return `<article class="card" onclick="showDetail('${p.id}')">
     <img src="${img}" alt="">
     <div class="pad"><span class="badge">${esc(p.category)}</span>
     <h3>${esc(p.title)}</h3><p>${esc(p.summary||'')}</p>
-    <div style="margin-top:10px"><time>${fmt(p.createdAt)}</time></div></div></article>`;
+    <div style="margin-top:10px"><time>${fmt(p.createdAt)}</time> <button class="btn" onclick="copyPostLink(event,'${p.id}',this)">লিংক কপি করুন</button></div></div></article>`;
 }
 function render(cat,q){
   let posts = allPosts;
@@ -45,13 +47,13 @@ async function showDetail(id){
   document.getElementById('listView').style.display='none';
   const d = document.getElementById('detailView'); d.style.display='block';
   const link = location.origin + '/?post=' + p.id;
-  document.getElementById('detail').innerHTML = `
-    <span class="badge">${esc(p.category)}</span>
-    <h2>${esc(p.title)}</h2><time>${fmt(p.createdAt)}</time>
-    ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="" style="margin-top:14px">`:''}
-    <p>${esc(p.body||'')}</p>
-    <p><button class="btn" id="copyLinkBtn">লিংক কপি করুন</button> <span id="copyMsg"></span></p>
-    <p style="color:#555;word-break:break-all">${esc(link)}</p>`;
+  document.getElementById('detail').innerHTML =
+  `<span class="badge">${esc(p.category)}</span>
+  <h2>${esc(p.title)}</h2><time>${fmt(p.createdAt)}</time>
+  <img src="${esc(directImg(p.imageUrl))}" alt="" style="margin-top:14px">
+  <p>${esc(p.body||'')}</p>
+  <p><button class="btn" id="copyLinkBtn">লিংক কপি করুন</button> <span id="copyMsg"></span></p>
+  <p style="color:#555;word-break:break-all">${esc(link)}</p>`;
   try{ history.replaceState(null,'','/?post='+p.id); }catch(e){}
   document.getElementById('copyLinkBtn').onclick = async ()=>{
     try{ await navigator.clipboard.writeText(link); }
@@ -63,7 +65,3 @@ async function showDetail(id){
   window.scrollTo(0,0);
 }
 document.getElementById('backBtn').onclick=()=>{document.getElementById('detailView').style.display='none';document.getElementById('listView').style.display='block';try{ history.replaceState(null,'','/'); }catch(e){}};
-document.getElementById('searchBtn').onclick=()=>render(document.getElementById('catFilter').value, document.getElementById('q').value);
-document.getElementById('catFilter').onchange=(e)=>render(e.target.value, document.getElementById('q').value);
-document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')render(document.getElementById('catFilter').value,e.target.value)});
-load();
