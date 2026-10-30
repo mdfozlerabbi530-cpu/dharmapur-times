@@ -11,6 +11,7 @@
   <h1>ধর্মপুর টাইমস — অ্যাডমিন</h1>
   <p style="color:#555">এই পেজের লিংক পাবলিক সাইটে কোথাও দেওয়া নেই। শুধু সরাসরি ঠিকানা জানলে আর পাসওয়ার্ড থাকলেই ঢোকা যাবে।</p>
 
+
   <section id="setupBox" style="display:none">
     <h2>প্রথমবার অ্যাডমিন পাসওয়ার্ড সেট করুন</h2>
     <label>নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)</label><input type="password" id="setupPass">
@@ -19,6 +20,7 @@
     <p id="setupMsg"></p>
   </section>
 
+
   <section id="loginBox" style="display:none">
     <h2>লগইন</h2>
     <label>অ্যাডমিন পাসওয়ার্ড</label><input type="password" id="loginPass">
@@ -26,9 +28,11 @@
     <p id="loginMsg"></p>
   </section>
 
+
   <section id="dash" style="display:none">
     <p><button class="btn ghost" id="logoutBtn">লগআউট</button>
     <button class="btn ghost" id="exportBtn">পোস্ট ব্যাকআপ ডাউনলোড</button></p>
+
 
     <h2>নতুন পোস্ট</h2>
     <form id="postForm">
@@ -44,8 +48,10 @@
       <p id="postMsg"></p>
     </form>
 
+
     <h2>সব পোস্ট</h2>
     <div id="postTable"></div>
+
 
     <h2>সাইট সেটিংস</h2>
     <form id="settingsForm">
@@ -55,8 +61,10 @@
       <label>ফেসবুক লিংক</label><input id="sFb">
       <label>ইউটিউব লিংক</label><input id="sYt">
       <label>যোগাযোগের তথ্য</label><textarea id="sContact"></textarea>
+      <label>বিজ্ঞাপন কোড (AdSense)</label><textarea id="sAd"></textarea>
       <p><button class="btn" type="submit">সেটিংস সেভ করুন</button></p>
     </form>
+
 
     <h2>পাসওয়ার্ড বদলান</h2>
     <form id="passForm">
