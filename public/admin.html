@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>অ্যাডমিন — ধর্মপুর টাইমস</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="admin">
+  <h1>ধর্মপুর টাইমস — অ্যাডমিন</h1>
+  <p style="color:#555">এই পেজের লিংক পাবলিক সাইটে কোথাও দেওয়া নেই। শুধু সরাসরি ঠিকানা জানলে আর পাসওয়ার্ড থাকলেই ঢোকা যাবে।</p>
+
+  <section id="setupBox" style="display:none">
+    <h2>প্রথমবার অ্যাডমিন পাসওয়ার্ড সেট করুন</h2>
+    <label>নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)</label><input type="password" id="setupPass">
+    <label>আবার পাসওয়ার্ড</label><input type="password" id="setupPass2">
+    <p><button class="btn" id="setupBtn">পাসওয়ার্ড সেট করুন</button></p>
+    <p id="setupMsg"></p>
+  </section>
+
+  <section id="loginBox" style="display:none">
+    <h2>লগইন</h2>
+    <label>অ্যাডমিন পাসওয়ার্ড</label><input type="password" id="loginPass">
+    <p><button class="btn" id="loginBtn">লগইন</button></p>
+    <p id="loginMsg"></p>
+  </section>
+
+  <section id="dash" style="display:none">
+    <p><button class="btn ghost" id="logoutBtn">লগআউট</button>
+    <button class="btn ghost" id="exportBtn">পোস্ট ব্যাকআপ ডাউনলোড</button></p>
+
+    <h2>নতুন পোস্ট</h2>
+    <form id="postForm">
+      <label>শিরোনাম</label><input id="fTitle" required>
+      <label>ক্যাটাগরি</label><select id="fCat"></select>
+      <label>সারসংক্ষেপ</label><textarea id="fSummary"></textarea>
+      <label>বিস্তারিত খবর</label><textarea id="fBody" required></textarea>
+      <label>ছবি (ঐচ্ছিক)</label><input type="file" id="fImage" accept="image/png,image/jpeg,image/webp">
+      <label>অথবা ছবির লিংক</label><input id="fImageUrl">
+      <label><input type="checkbox" id="fBreaking"> ব্রেকিং নিউজ হিসেবে দেখান</label>
+      <label><input type="checkbox" id="fPublished" checked> সঙ্গে সঙ্গে পাবলিশ করুন</label>
+      <p><button class="btn" type="submit">পোস্ট করুন</button></p>
+      <p id="postMsg"></p>
+    </form>
+
+    <h2>সব পোস্ট</h2>
+    <div id="postTable"></div>
+
+    <h2>সাইট সেটিংস</h2>
+    <form id="settingsForm">
+      <label>সাইটের নাম</label><input id="sName">
+      <label>ট্যাগলাইন</label><input id="sTagline">
+      <label>ব্রেকিং নিউজ লেখা</label><input id="sBreaking">
+      <label>ফেসবুক লিংক</label><input id="sFb">
+      <label>ইউটিউব লিংক</label><input id="sYt">
+      <label>যোগাযোগের তথ্য</label><textarea id="sContact"></textarea>
+      <p><button class="btn" type="submit">সেটিংস সেভ করুন</button></p>
+    </form>
+
+    <h2>পাসওয়ার্ড বদলান</h2>
+    <form id="passForm">
+      <label>বর্তমান পাসওয়ার্ড</label><input type="password" id="oldPass">
+      <label>নতুন পাসওয়ার্ড</label><input type="password" id="newPass">
+      <p><button class="btn" type="submit">পাসওয়ার্ড বদলান</button></p>
+      <p id="passMsg"></p>
+    </form>
+  </section>
+</main>
+<script src="/admin.js"></script>
+</body>
+</html>

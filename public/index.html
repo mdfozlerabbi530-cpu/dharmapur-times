@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ধর্মপুর টাইমস — সত্যের পক্ষে, জনতার পাশে</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <img src="/assets/logo.jpg" alt="ধর্মপুর টাইমস লোগো">
+  <div><h1 id="siteName">ধর্মপুর টাইমস</h1><p id="siteTagline">সত্যের পক্ষে, জনতার পাশে</p></div>
+  <div class="spacer"></div><div id="today"></div>
+</header>
+<nav id="cats"></nav>
+<div class="hero"><img src="/assets/banner.jpg" alt="ধর্মপুর টাইমস ব্যানার"></div>
+<div class="ticker"><b>ব্রেকিং</b><div class="wrap"><span id="breaking"></span></div></div>
+
+<main class="container">
+  <div class="toolbar">
+    <input id="q" placeholder="খবর খুঁজুন…">
+    <select id="catFilter"><option value="">সব ক্যাটাগরি</option></select>
+    <button class="btn" id="searchBtn">খুঁজুন</button>
+  </div>
+
+  <section id="listView">
+    <div id="featured" class="featured"></div>
+    <div id="grid" class="grid"></div>
+    <p id="empty" style="display:none">এই ক্যাটাগরিতে এখনো কোনো খবর নেই।</p>
+  </section>
+
+  <section id="detailView" style="display:none">
+    <button class="btn ghost" id="backBtn">← সব খবরে ফিরুন</button>
+    <article class="detail" id="detail"></article>
+  </section>
+</main>
+
+<footer><div class="container">
+  <h3>ধর্মপুর টাইমস</h3>
+  <p>সত্যের পক্ষে, জনতার পাশে। স্থানীয় সংবাদ, জনতার কণ্ঠস্বর ও উন্নয়নের খবর।</p>
+  <p id="contact"></p>
+</div></footer>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"description":"Dharmapur Times news website with a password-protected admin panel. No external dependencies.","engines":{"node":">=18"},"license":"UNLICENSED","main":"server.js","name":"dharmapur-times-website","private":true,"scripts":{"start":"node server.js"},"version":"1.0.0"}

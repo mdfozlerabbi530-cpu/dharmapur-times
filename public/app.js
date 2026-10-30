@@ -1,0 +1,55 @@
+const CATS = ['স্থানীয় সংবাদ','জাতীয়','আন্তর্জাতিক','খেলাধুলা','বিনোদন','জনতার কণ্ঠস্বর','উন্নয়ন','মতামত'];
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(d){try{return new Date(d).toLocaleDateString('bn-BD',{year:'numeric',month:'long',day:'numeric'})}catch(e){return d}}
+let allPosts=[];
+async function load(){
+  const [s, posts] = await Promise.all([
+    fetch('/api/settings').then(r=>r.json()),
+    fetch('/api/posts').then(r=>r.json()),
+  ]);
+  document.getElementById('siteName').textContent = s.siteName || 'ধর্মপুর টাইমস';
+  document.getElementById('siteTagline').textContent = s.tagline || '';
+  document.getElementById('breaking').textContent = s.breaking || '';
+  document.getElementById('contact').textContent = s.contact || '';
+  document.getElementById('today').textContent = fmt(new Date());
+  allPosts = posts;
+  const nav = document.getElementById('cats');
+  nav.innerHTML = '<button data-cat="" class="active">হোম</button>' + CATS.map(c=>`<button data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+  nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active');render(b.dataset.cat,'');});
+  const sel = document.getElementById('catFilter');
+  sel.innerHTML = '<option value="">সব ক্যাটাগরি</option>' + CATS.map(c=>`<option>${esc(c)}</option>`).join('');
+  render('','');
+}
+function card(p){
+  const img = p.imageUrl ? esc(p.imageUrl) : '/assets/logo.jpg';
+  return `<article class="card" onclick="showDetail('${p.id}')">
+    <img src="${img}" alt="">
+    <div class="pad"><span class="badge">${esc(p.category)}</span>
+    <h3>${esc(p.title)}</h3><p>${esc(p.summary||'')}</p>
+    <div style="margin-top:10px"><time>${fmt(p.createdAt)}</time></div></div></article>`;
+}
+function render(cat,q){
+  let posts = allPosts;
+  if(cat) posts = posts.filter(p=>p.category===cat);
+  if(q) posts = posts.filter(p=>(p.title+' '+(p.summary||'')).toLowerCase().includes(q.toLowerCase()));
+  document.getElementById('empty').style.display = posts.length ? 'none' : 'block';
+  const feat = document.getElementById('featured');
+  feat.innerHTML = posts.length ? card(posts[0]) : '';
+  document.getElementById('grid').innerHTML = posts.slice(1).map(card).join('');
+}
+async function showDetail(id){
+  const p = await fetch('/api/posts/'+id).then(r=>r.json());
+  document.getElementById('listView').style.display='none';
+  const d = document.getElementById('detailView'); d.style.display='block';
+  document.getElementById('detail').innerHTML = `
+    <span class="badge">${esc(p.category)}</span>
+    <h2>${esc(p.title)}</h2><time>${fmt(p.createdAt)}</time>
+    ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="" style="margin-top:14px">`:''}
+    <p>${esc(p.body||'')}</p>`;
+  window.scrollTo(0,0);
+}
+document.getElementById('backBtn').onclick=()=>{document.getElementById('detailView').style.display='none';document.getElementById('listView').style.display='block';};
+document.getElementById('searchBtn').onclick=()=>render(document.getElementById('catFilter').value, document.getElementById('q').value);
+document.getElementById('catFilter').onchange=(e)=>render(e.target.value, document.getElementById('q').value);
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')render(document.getElementById('catFilter').value,e.target.value)});
+load();
