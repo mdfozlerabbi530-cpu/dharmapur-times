@@ -11,7 +11,8 @@ async function load(){
   ]);
   document.getElementById('siteName').textContent = s.siteName || 'ধর্মপুর টাইমস';
   document.getElementById('siteTagline').textContent = s.tagline || '';
-  document.getElementById('breaking').textContent = s.breaking || '';
+  const brkTitles = posts.filter(p=>p.breaking).map(p=>p.title).join(' • ');
+  document.getElementById('breaking').textContent = brkTitles || s.breaking || '';
   document.getElementById('contact').textContent = s.contact || '';
   document.getElementById('today').textContent = fmt(new Date());
   allPosts = posts;
