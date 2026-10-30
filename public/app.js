@@ -1,4 +1,4 @@
-const CATS = ['স্থানীয় সংবাদ','জাতীয়','আন্তর্জাতিক','খেলাধুলা','বিনোদন','জনতার কণ্ঠস্বর','উন্নয়ন','মতামত'];
+const CATS = ['স্থানীয় সংবাদ','জাতীয়','আন্তর্জাতিক','খেলাধুলা','বিনোদন','শিক্ষা','জনতার কণ্ঠস্বর','উন্নয়ন','মতামত'];
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(d){try{return new Date(d).toLocaleDateString('bn-BD',{year:'numeric',month:'long',day:'numeric'})}catch(e){return d}}
 let allPosts=[];
