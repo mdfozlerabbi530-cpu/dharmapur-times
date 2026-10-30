@@ -27,6 +27,7 @@ const DEFAULT_DATA = {
     facebook: '',
     youtube: '',
     contact: 'যোগাযোগের তথ্য অ্যাডমিন প্যানেল থেকে বসান।',
+    adCode: '',
   },
   posts: [
     {
