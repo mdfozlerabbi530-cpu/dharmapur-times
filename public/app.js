@@ -66,3 +66,4 @@ async function showDetail(id){
   window.scrollTo(0,0);
 }
 document.getElementById('backBtn').onclick=()=>{document.getElementById('detailView').style.display='none';document.getElementById('listView').style.display='block';try{ history.replaceState(null,'','/'); }catch(e){}};
+load();
