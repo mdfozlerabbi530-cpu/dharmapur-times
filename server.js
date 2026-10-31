@@ -1,8 +1,30 @@
 // Dharmapur Times — free deployable news website.
-// No external dependencies: only Node.js built-ins.
+// No external dependencies: only Node.js built-ins (global fetch is used
+// for Supabase, Node >= 18).
 // Run: node server.js   (PORT env var, default 3000)
 // First visit /admin and set an admin password. That password is
 // stored only as a scrypt hash, never in plain text.
+//
+// STORAGE — two modes, same API behaviour:
+//   * Supabase mode (durable, for Render): set BOTH env vars
+//       SUPABASE_URL and SUPABASE_SERVICE_KEY
+//     Posts / settings / admin account are then stored in Supabase
+//     tables (see supabase-schema.sql) via the PostgREST REST API.
+//     A redeploy or restart no longer wipes posts.
+//     NEVER commit a real service key to the repo. Set it only as a
+//     Render environment variable. The service key bypasses row-level
+//     security, so it must never be sent to browsers or put in frontend
+//     code — it is used server-side only, in this file.
+//   * Local mode (fallback): if either env var is missing, posts /
+//     settings / admin are stored in data/data.json exactly as before,
+//     so local testing works with no Supabase account at all.
+//
+// NOTE ON IMAGES: uploaded images still go to public/uploads on the
+// server's local disk. On Render free that disk is ephemeral, so an
+// uploaded image will still be lost on a redeploy/restart even in
+// Supabase mode (only its /uploads/... URL string survives in the
+// database, and the file behind it will be gone). For durable images
+// use an image URL (a direct .jpg/.png/.webp link) instead of an upload.
 
 const http = require('http');
 const fs = require('fs');
@@ -16,6 +38,10 @@ const DATA_FILE = path.join(DATA_DIR, 'data.json');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads');
 const PORT = Number(process.env.PORT || 3000);
 
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const USE_SUPABASE = !!(SUPABASE_URL && SUPABASE_SERVICE_KEY);
+
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -27,7 +53,7 @@ const DEFAULT_DATA = {
     facebook: '',
     youtube: '',
     contact: 'যোগাযোগের তথ্য অ্যাডমিন প্যানেল থেকে বসান।',
-    adCode: '',
+    adcode: '',
   },
   posts: [
     {
@@ -45,9 +71,16 @@ const DEFAULT_DATA = {
   admin: null, // { salt, hash } — set on first /admin visit
 };
 
+// ---------------------------------------------------------------- local mode
 function loadData() {
   try {
-    if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    if (fs.existsSync(DATA_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      // Older local files predate the adcode field; keep it present so
+      // the settings JSON shape matches the Supabase mode.
+      parsed.settings = { ...DEFAULT_DATA.settings, ...(parsed.settings || {}) };
+      return parsed;
+    }
   } catch (e) { console.error('Could not read data file, using defaults:', e.message); }
   return JSON.parse(JSON.stringify(DEFAULT_DATA));
 }
@@ -58,13 +91,177 @@ function saveData() {
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
   fs.renameSync(tmp, DATA_FILE);
 }
-if (!fs.existsSync(DATA_FILE)) saveData();
+if (!USE_SUPABASE && !fs.existsSync(DATA_FILE)) saveData();
 
+// ------------------------------------------------------------- Supabase mode
+// Thin PostgREST client. No keys are logged or returned to clients.
+async function sbRequest(table, query, method, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query || ''}`, {
+    method: method || 'GET',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Supabase ${table} ${method || 'GET'} failed: ${res.status}`);
+  if (!text) return null;
+  try { return JSON.parse(text); } catch (e) { return null; }
+}
+async function sbRows(table, query) {
+  const rows = await sbRequest(table, query, 'GET');
+  return Array.isArray(rows) ? rows : [];
+}
+async function sbOne(table, query) {
+  const rows = await sbRows(table, query);
+  return rows[0] || null;
+}
+// Upserts use this dedicated call because merge-duplicates needs its
+// own Prefer header (primary-key upsert, never overwriting other rows).
+async function sbUpsertRow(table, row) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=representation',
+    },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) throw new Error(`Supabase ${table} upsert failed: ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function rowToPost(r) {
+  return {
+    id: r.id, title: r.title, category: r.category, summary: r.summary,
+    body: r.body, imageUrl: r.imageurl || '', breaking: !!r.breaking,
+    published: !!r.published, createdAt: r.createdat,
+  };
+}
+function postToRow(p) {
+  return {
+    id: p.id, title: p.title, category: p.category, summary: p.summary,
+    body: p.body, imageurl: p.imageUrl || '', breaking: !!p.breaking,
+    published: !!p.published, createdat: p.createdAt,
+  };
+}
+function rowToSettings(r) {
+  return {
+    siteName: r.sitename, tagline: r.tagline, breaking: r.breaking,
+    facebook: r.facebook || '', youtube: r.youtube || '',
+    contact: r.contact || '', adcode: r.adcode || '',
+  };
+}
+function settingsToRow(s) {
+  return {
+    id: 1, sitename: s.siteName, tagline: s.tagline, breaking: s.breaking,
+    facebook: s.facebook || '', youtube: s.youtube || '',
+    contact: s.contact || '', adcode: s.adcode || '',
+  };
+}
+
+let seeded = false;
+async function ensureSeeded() {
+  if (!USE_SUPABASE || seeded) return;
+  // Seed only when the tables are empty, never overwriting live data.
+  const settingsRow = await sbOne('site_settings', '?id=eq.1');
+  if (!settingsRow) await sbUpsertRow('site_settings', settingsToRow(DEFAULT_DATA.settings));
+  const posts = await sbRows('posts', '?select=id&limit=1');
+  if (posts.length === 0) {
+    const welcome = JSON.parse(JSON.stringify(DEFAULT_DATA.posts[0]));
+    welcome.createdAt = new Date().toISOString();
+    await sbRequest('posts', '', 'POST', postToRow(welcome));
+  }
+  seeded = true;
+}
+
+// ------------------------------------------------------- unified store (async)
+const store = {
+  async getSettings() {
+    if (!USE_SUPABASE) return data.settings;
+    await ensureSeeded();
+    const row = await sbOne('site_settings', '?id=eq.1');
+    return row ? rowToSettings(row) : JSON.parse(JSON.stringify(DEFAULT_DATA.settings));
+  },
+  async saveSettings(settings) {
+    if (!USE_SUPABASE) { data.settings = settings; saveData(); return settings; }
+    await ensureSeeded();
+    await sbUpsertRow('site_settings', settingsToRow(settings));
+    return settings;
+  },
+  async getAdmin() {
+    if (!USE_SUPABASE) return data.admin;
+    await ensureSeeded();
+    const row = await sbOne('admin_account', '?id=eq.1');
+    return row ? { salt: row.salt, hash: row.hash } : null;
+  },
+  async saveAdmin(admin) {
+    if (!USE_SUPABASE) { data.admin = admin; saveData(); return; }
+    await ensureSeeded();
+    await sbUpsertRow('admin_account', { id: 1, salt: admin.salt, hash: admin.hash });
+  },
+  async getPosts() {
+    if (!USE_SUPABASE) return data.posts;
+    await ensureSeeded();
+    const rows = await sbRows('posts', '?select=*');
+    return rows.map(rowToPost);
+  },
+  async getPost(id) {
+    if (!USE_SUPABASE) return data.posts.find(p => p.id === id) || null;
+    await ensureSeeded();
+    const row = await sbOne('posts', `?id=eq.${encodeURIComponent(id)}`);
+    return row ? rowToPost(row) : null;
+  },
+  async createPost(post) {
+    if (!USE_SUPABASE) { data.posts.unshift(post); saveData(); return post; }
+    await ensureSeeded();
+    await sbRequest('posts', '', 'POST', postToRow(post));
+    return post;
+  },
+  async updatePost(id, patch) {
+    if (!USE_SUPABASE) {
+      const post = data.posts.find(p => p.id === id);
+      if (!post) return null;
+      Object.assign(post, patch); saveData(); return post;
+    }
+    await ensureSeeded();
+    const existing = await this.getPost(id);
+    if (!existing) return null;
+    const merged = { ...existing, ...patch };
+    await sbRequest('posts', `?id=eq.${encodeURIComponent(id)}`, 'PATCH', postToRow(merged));
+    return merged;
+  },
+  async deletePost(id) {
+    if (!USE_SUPABASE) {
+      const before = data.posts.length;
+      data.posts = data.posts.filter(p => p.id !== id); saveData();
+      return data.posts.length !== before;
+    }
+    await ensureSeeded();
+    await sbRequest('posts', `?id=eq.${encodeURIComponent(id)}`, 'DELETE');
+    return true;
+  },
+};
+
+// ---------------------------------------------------------------- shared bits
 const sessions = new Map(); // token -> expiresAt
 const loginAttempts = new Map(); // ip -> { count, resetAt }
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+function hashesEqual(a, b) {
+  try {
+    const ba = Buffer.from(a || '');
+    const bb = Buffer.from(b || '');
+    return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+  } catch (e) { return false; }
 }
 function getSession(req) {
   const cookie = (req.headers.cookie || '').split(';').map(s => s.trim())
@@ -134,13 +331,13 @@ const server = http.createServer(async (req, res) => {
 
     // ---- Public API ----
     if (pathname === '/api/settings' && req.method === 'GET') {
-      return sendJson(res, 200, data.settings);
+      return sendJson(res, 200, await store.getSettings());
     }
     if (pathname === '/api/me' && req.method === 'GET') {
-      return sendJson(res, 200, { loggedIn: !!getSession(req), hasAdmin: !!data.admin });
+      return sendJson(res, 200, { loggedIn: !!getSession(req), hasAdmin: !!(await store.getAdmin()) });
     }
     if (pathname === '/api/posts' && req.method === 'GET') {
-      let posts = data.posts.filter(p => p.published);
+      let posts = (await store.getPosts()).filter(p => p.published);
       const cat = url.searchParams.get('category');
       const q = (url.searchParams.get('q') || '').toLowerCase();
       if (cat) posts = posts.filter(p => p.category === cat);
@@ -149,21 +346,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, posts.map(publicPost));
     }
     if (pathname.startsWith('/api/posts/') && req.method === 'GET') {
-      const post = data.posts.find(p => p.id === pathname.split('/')[3] && p.published);
-      if (!post) return sendJson(res, 404, { error: 'খবর পাওয়া যায়নি।' });
+      const post = await store.getPost(pathname.split('/')[3]);
+      if (!post || !post.published) return sendJson(res, 404, { error: 'খবর পাওয়া যায়নি।' });
       return sendJson(res, 200, publicPost(post));
     }
 
     // ---- Admin setup / login (no admin link is shown on the public site) ----
     if (pathname === '/api/setup' && req.method === 'POST') {
-      if (data.admin) return sendJson(res, 403, { error: 'অ্যাডমিন ইতিমধ্যে সেট করা আছে।' });
+      if (await store.getAdmin()) return sendJson(res, 403, { error: 'অ্যাডমিন ইতিমধ্যে সেট করা আছে।' });
       const body = await readJson(req, res); if (!body) return;
       if (!body.password || body.password.length < 8) {
         return sendJson(res, 400, { error: 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।' });
       }
       const salt = crypto.randomBytes(16).toString('hex');
-      data.admin = { salt, hash: hashPassword(body.password, salt) };
-      saveData();
+      await store.saveAdmin({ salt, hash: hashPassword(body.password, salt) });
       return sendJson(res, 200, { ok: true });
     }
     if (pathname === '/api/login' && req.method === 'POST') {
@@ -173,9 +369,10 @@ const server = http.createServer(async (req, res) => {
       if (att.resetAt < now) { att.count = 0; att.resetAt = now + 10 * 60 * 1000; }
       if (att.count >= 5) return sendJson(res, 429, { error: 'অনেকবার ভুল চেষ্টা হয়েছে। ১০ মিনিট পর আবার চেষ্টা করুন।' });
       const body = await readJson(req, res); if (!body) return;
-      if (!data.admin || !body.password) { att.count++; loginAttempts.set(ip, att); return sendJson(res, 401, { error: 'ভুল পাসওয়ার্ড।' }); }
-      const hash = hashPassword(body.password, data.admin.salt);
-      const ok = crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(data.admin.hash));
+      const admin = await store.getAdmin();
+      if (!admin || !body.password) { att.count++; loginAttempts.set(ip, att); return sendJson(res, 401, { error: 'ভুল পাসওয়ার্ড।' }); }
+      const hash = hashPassword(body.password, admin.salt);
+      const ok = hashesEqual(hash, admin.hash);
       if (!ok) { att.count++; loginAttempts.set(ip, att); return sendJson(res, 401, { error: 'ভুল পাসওয়ার্ড।' }); }
       loginAttempts.delete(ip);
       const token = crypto.randomBytes(32).toString('hex');
@@ -199,27 +396,29 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/admin/')) {
       if (!requireAuth(req, res)) return;
       if (pathname === '/api/admin/posts' && req.method === 'GET') {
-        const posts = [...data.posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const posts = [...(await store.getPosts())].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         return sendJson(res, 200, posts);
       }
-      if (pathname === '/api/admin/settings' && req.method === 'GET') return sendJson(res, 200, data.settings);
+      if (pathname === '/api/admin/settings' && req.method === 'GET') return sendJson(res, 200, await store.getSettings());
       if (pathname === '/api/admin/settings' && req.method === 'PUT') {
         const body = await readJson(req, res); if (!body) return;
-        data.settings = { ...data.settings, ...body };
-        saveData(); return sendJson(res, 200, data.settings);
+        const settings = { ...(await store.getSettings()), ...body };
+        await store.saveSettings(settings); return sendJson(res, 200, settings);
       }
       if (pathname === '/api/admin/change-password' && req.method === 'POST') {
         const body = await readJson(req, res); if (!body) return;
-        const cur = hashPassword(body.current || '', data.admin.salt);
-        if (!crypto.timingSafeEqual(Buffer.from(cur), Buffer.from(data.admin.hash))) {
+        const admin = await store.getAdmin();
+        if (!admin) return sendJson(res, 401, { error: 'বর্তমান পাসওয়ার্ড ভুল।' });
+        const cur = hashPassword(body.current || '', admin.salt);
+        if (!hashesEqual(cur, admin.hash)) {
           return sendJson(res, 401, { error: 'বর্তমান পাসওয়ার্ড ভুল।' });
         }
         if (!body.newPassword || body.newPassword.length < 8) {
           return sendJson(res, 400, { error: 'নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।' });
         }
         const salt = crypto.randomBytes(16).toString('hex');
-        data.admin = { salt, hash: hashPassword(body.newPassword, salt) };
-        saveData(); return sendJson(res, 200, { ok: true });
+        await store.saveAdmin({ salt, hash: hashPassword(body.newPassword, salt) });
+        return sendJson(res, 200, { ok: true });
       }
       if (pathname === '/api/admin/posts' && req.method === 'POST') {
         const body = await readJson(req, res); if (!body) return;
@@ -245,27 +444,29 @@ const server = http.createServer(async (req, res) => {
             }
           }
         }
-        data.posts.unshift(post); saveData();
+        await store.createPost(post);
         return sendJson(res, 200, post);
       }
       if (pathname.startsWith('/api/admin/posts/')) {
         const id = pathname.split('/')[4];
-        const post = data.posts.find(p => p.id === id);
+        const post = await store.getPost(id);
         if (!post) return sendJson(res, 404, { error: 'খবর পাওয়া যায়নি।' });
         if (req.method === 'PUT') {
           const body = await readJson(req, res); if (!body) return;
-          if (body.title) post.title = String(body.title).slice(0, 200);
-          if (body.category) post.category = String(body.category).slice(0, 60);
-          if (body.summary !== undefined) post.summary = String(body.summary).slice(0, 500);
-          if (body.body) post.body = String(body.body).slice(0, 20000);
-          if (body.imageUrl !== undefined) post.imageUrl = String(body.imageUrl).slice(0, 1000);
-          if (body.breaking !== undefined) post.breaking = !!body.breaking;
-          if (body.published !== undefined) post.published = !!body.published;
-          saveData(); return sendJson(res, 200, post);
+          const patch = {};
+          if (body.title) patch.title = String(body.title).slice(0, 200);
+          if (body.category) patch.category = String(body.category).slice(0, 60);
+          if (body.summary !== undefined) patch.summary = String(body.summary).slice(0, 500);
+          if (body.body) patch.body = String(body.body).slice(0, 20000);
+          if (body.imageUrl !== undefined) patch.imageUrl = String(body.imageUrl).slice(0, 1000);
+          if (body.breaking !== undefined) patch.breaking = !!body.breaking;
+          if (body.published !== undefined) patch.published = !!body.published;
+          const updated = await store.updatePost(id, patch);
+          return sendJson(res, 200, updated);
         }
         if (req.method === 'DELETE') {
-          data.posts = data.posts.filter(p => p.id !== id);
-          saveData(); return sendJson(res, 200, { ok: true });
+          await store.deletePost(id);
+          return sendJson(res, 200, { ok: true });
         }
       }
       return sendJson(res, 404, { error: 'পাওয়া যায়নি।' });
@@ -286,6 +487,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Dharmapur Times running at http://localhost:${PORT}`);
+  console.log(`Dharmapur Times running at http://localhost:${PORT} (${USE_SUPABASE ? 'Supabase mode' : 'local data.json mode'})`);
   console.log('Admin: http://localhost:' + PORT + '/admin  (set password on first visit)');
 });
