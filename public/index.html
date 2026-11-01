@@ -7,15 +7,14 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<header class="topbar">
+<div class="dateline"><span id="today"></span></div>
+<header class="masthead">
   <img src="/assets/logo.jpg" alt="ধর্মপুর টাইমস লোগো">
-  <div><h1 id="siteName">ধর্মপুর টাইমস</h1><p id="siteTagline">সত্যের পক্ষে, জনতার পাশে</p></div>
-  <div class="spacer"></div><div id="today"></div>
+  <h1 id="siteName">ধর্মপুর টাইমস</h1>
+  <p id="siteTagline">সত্যের পক্ষে, জনতার পাশে</p>
 </header>
 <nav id="cats"></nav>
-<div class="hero"><img src="/assets/banner.jpg" alt="ধর্মপুর টাইমস ব্যানার"></div>
 <div class="ticker"><b>ব্রেকিং</b><div class="wrap"><span id="breaking"></span></div></div>
-
 
 <main class="container">
   <div class="toolbar">
@@ -24,23 +23,24 @@
     <button class="btn" id="searchBtn">খুঁজুন</button>
   </div>
 
-  <div id="adTop" class="ad-slot" style="display:none"></div>
-
-
   <section id="listView">
-    <div id="featured" class="featured"></div>
+    <div class="hero-grid">
+      <div id="featured"></div>
+      <aside class="side-list">
+        <h2>সর্বশেষ</h2>
+        <div id="sideList"></div>
+      </aside>
+    </div>
+    <h2 class="section-title">সব খবর</h2>
     <div id="grid" class="grid"></div>
     <p id="empty" style="display:none">এই ক্যাটাগরিতে এখনো কোনো খবর নেই।</p>
   </section>
 
-
   <section id="detailView" style="display:none">
     <button class="btn ghost" id="backBtn">← সব খবরে ফিরুন</button>
-    <div id="adDetail" class="ad-slot" style="display:none"></div>
     <article class="detail" id="detail"></article>
   </section>
 </main>
-
 
 <footer><div class="container">
   <h3>ধর্মপুর টাইমস</h3>
