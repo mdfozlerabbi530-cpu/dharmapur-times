@@ -34,10 +34,19 @@ async function loadAdmin(){
   const s = await api('/api/admin/settings','GET');
   document.getElementById('sName').value = s.siteName||''; document.getElementById('sTagline').value = s.tagline||'';
   document.getElementById('sBreaking').value = s.breaking||''; document.getElementById('sFb').value = s.facebook||'';
-  document.getElementById('sYt').value = s.youtube||''; document.getElementById('sContact').value = s.contact||''; document.getElementById('sAd').value = s.adCode||'';
+  document.getElementById('sYt').value = s.youtube||''; document.getElementById('sContact').value = s.contact||'';
+  document.getElementById('sAdcode').value = s.adcode||'';
+  try{
+    const st = await api('/api/admin/stats','GET');
+    document.getElementById('statsSummary').textContent =
+      'হোমপেজ ভিজিট: ' + (st.homeViews||0) + '  •  সব পোস্ট মিলিয়ে ভিজিট: ' + (st.totalPostViews||0) +
+      (st.tableMissing ? '  (দ্রষ্টব্য: ভিজিটর টেবিল এখনো তৈরি হয়নি, তাই সংখ্যা ০ দেখাচ্ছে)' : '');
+    document.getElementById('statsTable').innerHTML = '<table><tr><th>পোস্ট</th><th>ক্যাটাগরি</th><th>ভিজিট</th></tr>' +
+      (st.posts||[]).map(p=>`<tr><td>${esc(p.title)}</td><td>${esc(p.category)}</td><td>${p.views||0}</td></tr>`).join('') + '</table>';
+  }catch(e){ document.getElementById('statsSummary').textContent = 'পরিসংখ্যান লোড হয়নি।'; }
   document.getElementById('postTable').innerHTML = '<table><tr><th>শিরোনাম</th><th>ক্যাটাগরি</th><th>অবস্থা</th><th></th></tr>' +
-  posts.map(p=>`<tr><td>${esc(p.title)}</td><td>${esc(p.category)}</td><td>${p.published?'পাবলিশড':'ড্রাফট'}</td>` +
-  `<td><button onclick="delPost('${p.id}')">ডিলিট</button></td></tr>`).join('') + '</table>';
+    posts.map(p=>`<tr><td>${esc(p.title)}</td><td>${esc(p.category)}</td><td>${p.published?'পাবলিশড':'ড্রাফট'}</td>
+    <td><button onclick="delPost('${p.id}')">ডিলিট</button></td></tr>`).join('') + '</table>';
 }
 window.delPost = async (id)=>{
   if(!confirm('এই পোস্টটি ডিলিট করবেন?')) return;
@@ -69,7 +78,8 @@ document.getElementById('settingsForm').onsubmit = async (e)=>{
   await api('/api/admin/settings','PUT',{
     siteName: document.getElementById('sName').value, tagline: document.getElementById('sTagline').value,
     breaking: document.getElementById('sBreaking').value, facebook: document.getElementById('sFb').value,
-    youtube: document.getElementById('sYt').value, contact: document.getElementById('sContact').value, adCode: document.getElementById('sAd').value,
+    youtube: document.getElementById('sYt').value, contact: document.getElementById('sContact').value,
+    adcode: document.getElementById('sAdcode').value,
   });
   alert('সেটিংস সেভ হয়েছে।');
 };

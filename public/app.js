@@ -2,13 +2,24 @@ const CATS = ['স্থানীয় সংবাদ','জাতীয়','�
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(d){try{return new Date(d).toLocaleDateString('bn-BD',{year:'numeric',month:'long',day:'numeric'})}catch(e){return d}}
 let allPosts=[];
+let siteSettings={};
+function sendView(postId){
+  try{
+    const key = postId ? 'viewed_post_' + postId : 'viewed_home';
+    if(sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    fetch('/api/view', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({postId: postId || ''})}).catch(()=>{});
+  }catch(e){}
+}
 async function load(){
   const [s, posts] = await Promise.all([
     fetch('/api/settings').then(r=>r.json()),
     fetch('/api/posts').then(r=>r.json()),
   ]);
+  siteSettings = s;
   document.getElementById('siteName').textContent = s.siteName || 'ধর্মপুর টাইমস';
   document.getElementById('siteTagline').textContent = s.tagline || '';
+  const adTop = document.getElementById('adTop'); if(adTop) adTop.innerHTML = s.adcode || '';
   const breakingPosts = posts.filter(p=>p.breaking);
   document.getElementById('breaking').textContent = breakingPosts.length ? breakingPosts.map(p=>p.title).join(' • ') : (s.breaking || '');
   document.getElementById('contact').textContent = s.contact || '';
@@ -20,6 +31,7 @@ async function load(){
   const sel = document.getElementById('catFilter');
   sel.innerHTML = '<option value="">সব ক্যাটাগরি</option>' + CATS.map(c=>`<option>${esc(c)}</option>`).join('');
   render('','');
+  sendView('');
   const postId = new URLSearchParams(location.search).get('post');
   if(postId && posts.some(p=>p.id===postId)) showDetail(postId);
 }
@@ -59,6 +71,7 @@ function render(cat,q){
 async function showDetail(id){
   const p = await fetch('/api/posts/'+id).then(r=>r.json());
   if(!p || !p.id) return;
+  sendView(id);
   document.getElementById('listView').style.display='none';
   const d = document.getElementById('detailView'); d.style.display='block';
   const link = location.origin + '/?post=' + p.id;
@@ -67,6 +80,7 @@ async function showDetail(id){
     <h2>${esc(p.title)}</h2><time>${fmt(p.createdAt)}</time>
     ${isImageUrl(p.imageUrl)?`<img src="${esc(p.imageUrl)}" alt="" style="margin-top:14px">`:''}
     <p>${esc(p.body||'')}</p>
+    ${siteSettings.adcode ? `<div id="adDetail">${siteSettings.adcode}</div>` : ''}
     <p><button class="btn" id="copyLinkBtn">লিংক কপি করুন</button> <span id="copyMsg"></span></p>
     <p style="color:#555;word-break:break-all">${esc(link)}</p>`;
   try{ history.replaceState(null,'','/?post='+p.id); }catch(e){}
