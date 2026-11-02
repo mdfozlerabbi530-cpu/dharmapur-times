@@ -42,6 +42,19 @@ CREATE TABLE IF NOT EXISTS admin_account (
   hash text NOT NULL
 );
 
+-- Visitor analytics (added 2026-11-02). Counts only — no IP or personal data.
+-- Run these two statements in the Supabase SQL Editor BEFORE deploying
+-- the analytics code, or the stats page will show the table-missing note.
+CREATE TABLE IF NOT EXISTS post_views (
+  post_id text PRIMARY KEY,
+  views bigint NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS site_stats (
+  id int PRIMARY KEY,
+  home_views bigint NOT NULL DEFAULT 0
+);
+
 -- The server seeds site_settings (id = 1) and the welcome post itself
 -- on first use when the tables are empty, so no INSERTs are needed here.
 -- If you re-run this file, existing rows are left untouched

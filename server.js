@@ -69,6 +69,9 @@ const DEFAULT_DATA = {
     },
   ],
   admin: null, // { salt, hash } — set on first /admin visit
+  // Visitor counts (local mode only; Supabase mode uses post_views/site_stats tables).
+  // Only counts are stored — no IP, device, or personal data.
+  views: { home: 0, posts: {} },
 };
 
 // ---------------------------------------------------------------- local mode
@@ -79,6 +82,7 @@ function loadData() {
       // Older local files predate the adcode field; keep it present so
       // the settings JSON shape matches the Supabase mode.
       parsed.settings = { ...DEFAULT_DATA.settings, ...(parsed.settings || {}) };
+      parsed.views = parsed.views || { home: 0, posts: {} };
       return parsed;
     }
   } catch (e) { console.error('Could not read data file, using defaults:', e.message); }
@@ -247,6 +251,37 @@ const store = {
     await sbRequest('posts', `?id=eq.${encodeURIComponent(id)}`, 'DELETE');
     return true;
   },
+  // ---- Visitor analytics: counts only, no personal data ----
+  async recordView(postId) {
+    if (!USE_SUPABASE) {
+      if (!data.views) data.views = { home: 0, posts: {} };
+      if (postId) data.views.posts[postId] = (data.views.posts[postId] || 0) + 1;
+      else data.views.home = (data.views.home || 0) + 1;
+      saveData(); return;
+    }
+    if (postId) {
+      const row = await sbOne('post_views', `?post_id=eq.${encodeURIComponent(postId)}`);
+      if (!row) await sbRequest('post_views', '', 'POST', { post_id: postId, views: 1 });
+      else await sbRequest('post_views', `?post_id=eq.${encodeURIComponent(postId)}`, 'PATCH', { views: (row.views || 0) + 1 });
+    } else {
+      const row = await sbOne('site_stats', '?id=eq.1');
+      if (!row) await sbRequest('site_stats', '', 'POST', { id: 1, home_views: 1 });
+      else await sbRequest('site_stats', '?id=eq.1', 'PATCH', { home_views: (row.home_views || 0) + 1 });
+    }
+  },
+  async getStats() {
+    const posts = await this.getPosts();
+    if (!USE_SUPABASE) {
+      const v = data.views || { home: 0, posts: {} };
+      const list = posts.map(p => ({ id: p.id, title: p.title, category: p.category, createdAt: p.createdAt, views: v.posts[p.id] || 0 }));
+      return { homeViews: v.home || 0, totalPostViews: list.reduce((a, p) => a + p.views, 0), posts: list.sort((a, b) => b.views - a.views) };
+    }
+    const viewRows = await sbRows('post_views', '?select=*');
+    const map = {}; viewRows.forEach(r => { map[r.post_id] = r.views || 0; });
+    const statRow = await sbOne('site_stats', '?id=eq.1');
+    const list = posts.map(p => ({ id: p.id, title: p.title, category: p.category, createdAt: p.createdAt, views: map[p.id] || 0 }));
+    return { homeViews: (statRow && statRow.home_views) || 0, totalPostViews: list.reduce((a, p) => a + p.views, 0), posts: list.sort((a, b) => b.views - a.views) };
+  },
 };
 
 // ---------------------------------------------------------------- shared bits
@@ -336,6 +371,16 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/me' && req.method === 'GET') {
       return sendJson(res, 200, { loggedIn: !!getSession(req), hasAdmin: !!(await store.getAdmin()) });
     }
+    // Visitor count: one hit per browser session per post/home is sent by
+    // the frontend (sessionStorage dedupe). Failures must never break the site.
+    if (pathname === '/api/view' && req.method === 'POST') {
+      try {
+        const body = await readJson(req, res); if (!body) return;
+        const postId = typeof body.postId === 'string' ? body.postId.slice(0, 100) : '';
+        await store.recordView(postId || null);
+      } catch (e) { console.error('view count failed:', e.message); }
+      return sendJson(res, 200, { ok: true });
+    }
     if (pathname === '/api/posts' && req.method === 'GET') {
       let posts = (await store.getPosts()).filter(p => p.published);
       const cat = url.searchParams.get('category');
@@ -398,6 +443,10 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/admin/posts' && req.method === 'GET') {
         const posts = [...(await store.getPosts())].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         return sendJson(res, 200, posts);
+      }
+      if (pathname === '/api/admin/stats' && req.method === 'GET') {
+        try { return sendJson(res, 200, await store.getStats()); }
+        catch (e) { return sendJson(res, 200, { homeViews: 0, totalPostViews: 0, posts: [], tableMissing: true }); }
       }
       if (pathname === '/api/admin/settings' && req.method === 'GET') return sendJson(res, 200, await store.getSettings());
       if (pathname === '/api/admin/settings' && req.method === 'PUT') {
